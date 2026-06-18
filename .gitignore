@@ -1,0 +1,20 @@
+# virtualenv
+.venv/
+__pycache__/
+*.pyc
+
+# model weights (downloaded / vendored; see README for how to obtain)
+*.pt
+*.pth
+*.onnx
+
+# source footage + rendered outputs (large binaries)
+*.mp4
+*.mov
+output/*.mp4
+output/*.png
+output/*_meta.json
+
+# keep the CSV/report text outputs out too by default (regenerate locally)
+output/*.csv
+output/*.txt

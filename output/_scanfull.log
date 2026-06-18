@@ -1,0 +1,38 @@
+scanning 16850 frames @ 60.03fps in 1500-frame chunks
+  0-1500: 1 tracks (cum 1)
+  1500-3000: 73 tracks (cum 74)
+  3000-4500: 7 tracks (cum 81)
+  4500-6000: 814 tracks (cum 895)
+  6000-7500: 338 tracks (cum 1233)
+  7500-9000: 49 tracks (cum 1282)
+  9000-10500: 134 tracks (cum 1416)
+  10500-12000: 479 tracks (cum 1895)
+  12000-13500: 166 tracks (cum 2061)
+  13500-15000: 173 tracks (cum 2234)
+  15000-16500: 88 tracks (cum 2322)
+  16500-16850: 71 tracks (cum 2393)
+
+2393 tracks -> 38 events -> 31 candidates
+top candidates (t0, disp, peak px/s, area, from->to):
+  t= 90.71s  disp=1690  peak= 24552  area= 237  [130, 53]->[145, 1742]
+  t= 81.33s  disp=1445  peak= 21991  area= 115  [248, 433]->[214, 1878]
+  t=279.91s  disp=1164  peak= 22837  area= 257  [254, 247]->[14, 1386]
+  t= 30.62s  disp=1414  peak= 16559  area= 275  [1078, 1044]->[88, 35]
+  t=222.81s  disp=1257  peak= 17172  area= 342  [858, 959]->[18, 1894]
+  t=183.32s  disp=1325  peak= 14069  area= 180  [934, 617]->[682, 1918]
+  t=209.84s  disp=1274  peak= 14145  area= 337  [256, 746]->[810, 1893]
+  t=157.69s  disp=1255  peak= 14230  area= 226  [1066, 931]->[28, 227]
+  t= 97.79s  disp= 993  peak= 17650  area= 295  [151, 1014]->[122, 21]
+  t=202.92s  disp=1403  peak= 12308  area= 320  [1057, 506]->[951, 1905]
+  t=258.70s  disp=1216  peak= 14119  area= 240  [232, 700]->[319, 1913]
+  t=176.79s  disp=1279  peak= 13420  area= 245  [978, 727]->[484, 1907]
+  t=190.10s  disp= 748  peak= 22836  area=  20  [1053, 1776]->[317, 1909]
+  t=266.29s  disp=1494  peak= 11199  area= 406  [1034, 569]->[260, 1846]
+  t=247.54s  disp=1109  peak= 12740  area= 248  [660, 809]->[908, 1890]
+  t= 78.60s  disp= 986  peak= 14010  area= 484  [1058, 1002]->[680, 1912]
+  t=274.17s  disp= 804  peak= 16921  area=  29  [1049, 1742]->[252, 1848]
+  t=125.24s  disp=1108  peak= 12171  area= 314  [1077, 803]->[951, 1904]
+  t=149.95s  disp=1044  peak= 12865  area= 117  [869, 921]->[519, 1905]
+  t=139.57s  disp= 869  peak= 15323  area= 370  [1052, 957]->[226, 1229]
+
+wrote /Users/zero/repos/rally-coach/output/_shuttle_candidates.json
