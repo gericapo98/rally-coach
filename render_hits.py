@@ -22,36 +22,44 @@ Outputs in output/:
 import os
 import json
 import argparse
-from collections import deque
 
 import cv2
-import numpy as np
 
 import fastshuttle as fs
+import globaltrack as gt
 
 YELLOW = (0, 255, 255)
 ORANGE = (0, 180, 255)
 
 
-def track_speeds(top, fps):
-    """px/s at each track point."""
-    pts = top["pts"]
-    sp = {pts[0][0]: 0.0}
-    for k in range(1, len(pts)):
-        f0, x0, y0 = pts[k - 1]
-        f1, x1, y1 = pts[k]
-        dt = (f1 - f0) / fps if f1 != f0 else 1e9
-        sp[f1] = float(np.hypot(x1 - x0, y1 - y0) / dt)
-    return sp
+def _frame_index(flights):
+    """Build {frame -> (x, y, speed, flight_id)} from all stitched flights.
+
+    Where flights overlap on a frame, the marker for the one with more
+    supporting detections wins, so the drawn point stays on the dominant
+    shuttle motion.
+    """
+    idx = {}
+    order = sorted(range(len(flights)), key=lambda i: flights[i]["n_inliers"])
+    for fi in order:                         # weakest first so strongest overwrites
+        fl = flights[fi]
+        for f, x, y in fl["path"]:
+            idx[f] = (x, y, fl["speed"].get(f, 0.0), fi)
+    return idx
 
 
-def render_window(cap, fps, w, h, f0, f1, top, slowdown, writer, label_idx):
-    """Draw one hit window into `writer`. Returns frames written."""
-    pts = {p[0]: (p[1], p[2]) for p in top["pts"]} if top else {}
-    poly = [(p[0], int(p[1]), int(p[2])) for p in top["pts"]] if top else []
-    speeds = track_speeds(top, fps) if top else {}
-    peak = max(speeds.values()) if speeds else 0.0
-    t0 = f0 / fps
+def render_window(cap, fps, w, h, f0, f1, flights, slowdown, writer, label_idx):
+    """Draw one hit window into `writer`. Returns frames written.
+
+    Every stitched flight is drawn as a growing orange polyline, with a yellow
+    marker on the shuttle at every frame the flight covers (gaps filled by the
+    fitted trajectory), so the marker stays glued to the shuttle through each
+    strike in the burst instead of flashing on for one fragment.
+    """
+    fidx = _frame_index(flights)
+    polys = [[(int(p[0]), int(p[1]), int(p[2])) for p in fl["path"]]
+             for fl in flights]
+    peak = max((fl["peak_speed"] for fl in flights), default=0.0)
 
     cap.set(cv2.CAP_PROP_POS_FRAMES, f0)
     written = 0
@@ -59,20 +67,22 @@ def render_window(cap, fps, w, h, f0, f1, top, slowdown, writer, label_idx):
         ok, fr = cap.read()
         if not ok:
             break
-        # flight path up to this frame
-        drawn = [p for p in poly if p[0] <= fid]
-        for k in range(1, len(drawn)):
-            cv2.line(fr, drawn[k - 1][1:], drawn[k][1:], ORANGE, 2)
-        if fid in pts:
-            x, y = int(pts[fid][0]), int(pts[fid][1])
+        # each flight's path up to this frame
+        for poly in polys:
+            drawn = [p for p in poly if p[0] <= fid]
+            for k in range(1, len(drawn)):
+                cv2.line(fr, drawn[k - 1][1:], drawn[k][1:], ORANGE, 2)
+        if fid in fidx:
+            x, y, spd, _ = fidx[fid]
+            x, y = int(x), int(y)
             cv2.circle(fr, (x, y), 18, YELLOW, 3)
-            cv2.putText(fr, f"{speeds.get(fid, 0):.0f} px/s", (x + 22, y),
+            cv2.putText(fr, f"{spd:.0f} px/s", (x + 22, y),
                         cv2.FONT_HERSHEY_SIMPLEX, 0.9, YELLOW, 2)
         cv2.rectangle(fr, (0, 0), (w, 110), (0, 0, 0), -1)
         cv2.putText(fr, f"SHUTTLE hit #{label_idx}   t={fid/fps:6.2f}s   1/{slowdown:g}x",
                     (20, 44), cv2.FONT_HERSHEY_SIMPLEX, 1.0, (255, 255, 255), 2)
-        cv2.putText(fr, f"peak {peak:.0f} px/s", (20, 92),
-                    cv2.FONT_HERSHEY_SIMPLEX, 0.9, YELLOW, 2)
+        cv2.putText(fr, f"peak {peak:.0f} px/s   {len(flights)} flights",
+                    (20, 92), cv2.FONT_HERSHEY_SIMPLEX, 0.9, YELLOW, 2)
         writer.write(fr)
         written += 1
     return written
@@ -110,16 +120,17 @@ def main():
         f0 = max(0, int(hit["f0"]) - pad)
         f1 = min(n_total - 1, int(hit["f1"]) + pad)
         tracks = fs.scan(args.video, start=f0, end=f1 + 1)
-        top = tracks[0] if tracks else None
+        flights = gt.stitch(tracks, fps)
         t0 = f0 / fps
         clip_path = os.path.join(args.save_dir, f"shuttle_hit_{i:02d}_t{t0:.1f}s.mp4")
         wclip = cv2.VideoWriter(clip_path, fourcc, out_fps, (w, h))
-        n = render_window(cap, fps, w, h, f0, f1, top, args.slowdown, wclip, i)
+        n = render_window(cap, fps, w, h, f0, f1, flights, args.slowdown, wclip, i)
         wclip.release()
         # also append into the combined reel
-        render_window(cap, fps, w, h, f0, f1, top, args.slowdown, combined, i)
-        peak = top["peak_speed"] if top else 0
-        print(f"hit #{i}: t={t0:.1f}s  frames {f0}-{f1}  peak {peak:.0f} px/s  -> {clip_path}")
+        render_window(cap, fps, w, h, f0, f1, flights, args.slowdown, combined, i)
+        peak = max((fl["peak_speed"] for fl in flights), default=0)
+        print(f"hit #{i}: t={t0:.1f}s  frames {f0}-{f1}  {len(flights)} flights  "
+              f"peak {peak:.0f} px/s  -> {clip_path}")
         made.append(clip_path)
     combined.release()
     cap.release()
