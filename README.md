@@ -121,18 +121,49 @@ track-stitching layer, and a physics/trajectory prior. This module is the
 - seeding on far-and-fast tracklets is the offline cousin of **WASB's
   temporal-consistency gate**.
 
+### Continuity layer (`extend.py`)
+
+On this footage the shuttle is **off-frame between hits** — it swings into the
+frame for each strike and exits — so the only honest continuity to gain is
+covering each swing's *full in-frame transit*. `extend.py` adds two appearance
+passes around the stitched flights:
+
+1. **Yellow color gate** (`gate_color`) — the shuttle is a saturated yellow
+   nylon cock; the wall/lockers it gets confused with are near-grey. Flights
+   whose path rides saturated-yellow pixels are kept; pure background-noise
+   fits are dropped. (cv2.TrackerCSRT was the first idea, but it lives in
+   opencv-contrib — not installed — and a correlation tracker anyway *traps on
+   the low-texture wall* with false-high confidence, so color is used instead.)
+2. **Motion-validated swing extension** (`extend_flights`) — each flight's
+   trajectory is marched outward toward the frame edges, snapping to a
+   frame-difference blob **that is also yellow**, until the motion dies or the
+   path leaves frame. This grows a clean strike from its detected core to the
+   shuttle's full entry→exit transit (e.g. hit9: 30 → 35 continuous frames).
+
+`render_hits.py` then applies a **per-frame appearance gate**: a marker is drawn
+only where that exact spot is the saturated shuttle, so the blob never sits on
+the wall between detections.
+
 ### Honest limitation (and the principled next step)
 
-Because the candidate source is **motion-only**, this cannot fully reject
-compression-noise streaks: noise can be long, straight, and fast enough to mimic
-a strike, and simple appearance cues fail here (the white shuttle on a beige
-wall has *lower* contrast than the background lockers; frame-diff energy at the
-smoothed path is *higher* for some noise than for a real fast strike — both were
-tested and rejected). So on the **clean single-strike hits the tracking is
-tight**, while a **noisy multi-strike burst may still show an occasional marker
-on the wall**. The principled fix, per the review, is an **appearance check
-using the already-vendored TrackNet**: keep only fitted flights whose path the
-heatmap also supports. That verification layer is the recommended next build.
+The candidate source is **motion-only**, and the appearance signal is just
+colour, so neither fully separates the shuttle from the background on the
+*noisy multi-strike bursts*. Tested and rejected as discriminators: NCC
+correlation (traps on the wall), local contrast (the white/yellow shuttle is
+*lower* contrast than the lockers), and frame-diff energy. Colour helps where
+the background is the grey wall, but **fails where the warm-toned wood floor is
+in the shuttle's path** (floor and shuttle overlap in hue+saturation). Net
+result:
+
+- **Clean single-swing hits (1, 6–10): tight, continuous tracking** across the
+  full in-frame swing — verified marker-on-shuttle every frame (hit9: 35/35).
+- **Noisy multi-strike bursts (2–4): partial** — the worst wall-noise is
+  dropped, but some markers still drift onto the wall/floor.
+
+The principled fix, per the literature review, is a **trained appearance
+detector** — fine-tune the vendored **TrackNet** (or a small yellow-shuttle
+detector) on this footage and keep only flights/frames the detector confirms.
+That is the recommended next build; the colour gate here is the cheap stand-in.
 
 ## Layout
 
@@ -145,6 +176,7 @@ players.py          YOLO11-pose wrapper (.infer / .arm)
 shuttle.py          TrackNetV3 shuttle detector (appearance)
 fastshuttle.py      full-rate frame-diff shuttle candidates (motion)
 globaltrack.py      global trajectory stitching: tracklets -> flights
+extend.py           continuity layer: yellow gate + motion-validated swing extend
 render_hits.py      slowed, shuttle-tracked clips of confirmed hits
 localize.py         heatmap -> single shuttle point (MonoTrack §4.3)
 TrackNetV3/         vendored pretrained shuttle model

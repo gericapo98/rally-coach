@@ -129,7 +129,8 @@ def _make_flight(f0, f1, n_inliers, px, py, fps, min_disp, max_span):
         speed[cf] = float(np.hypot(cxv - pxv, cyv - pyv) / dt)
     return {"f0": f0, "f1": f1, "path": path, "speed": speed, "disp": disp,
             "n_inliers": int(n_inliers),
-            "peak_speed": max(speed.values()) if speed else 0.0}
+            "peak_speed": max(speed.values()) if speed else 0.0,
+            "px": np.asarray(px), "py": np.asarray(py)}  # for trajectory extension
 
 
 def stitch(tracks, fps, tol=45, frame_pad=6, min_inliers=5, min_disp=400,

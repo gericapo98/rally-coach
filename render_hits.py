@@ -27,6 +27,7 @@ import cv2
 
 import fastshuttle as fs
 import globaltrack as gt
+import extend as ext
 
 YELLOW = (0, 255, 255)
 ORANGE = (0, 180, 255)
@@ -67,12 +68,17 @@ def render_window(cap, fps, w, h, f0, f1, flights, slowdown, writer, label_idx):
         ok, fr = cap.read()
         if not ok:
             break
+        # per-frame appearance gate: only mark a frame where the predicted spot
+        # is actually the saturated yellow shuttle (checked on the clean frame,
+        # before any overlay). This suppresses the frames where a flight's path
+        # drifts off the shuttle onto the wall/floor between detections.
+        show = fid in fidx and ext._is_yellow(fr, fidx[fid][0], fidx[fid][1])
         # each flight's path up to this frame
         for poly in polys:
             drawn = [p for p in poly if p[0] <= fid]
             for k in range(1, len(drawn)):
                 cv2.line(fr, drawn[k - 1][1:], drawn[k][1:], ORANGE, 2)
-        if fid in fidx:
+        if show:
             x, y, spd, _ = fidx[fid]
             x, y = int(x), int(y)
             cv2.circle(fr, (x, y), 18, YELLOW, 3)
@@ -121,6 +127,8 @@ def main():
         f1 = min(n_total - 1, int(hit["f1"]) + pad)
         tracks = fs.scan(args.video, start=f0, end=f1 + 1)
         flights = gt.stitch(tracks, fps)
+        flights = ext.gate_color(args.video, flights)        # drop wall-noise (yellow check)
+        flights = ext.extend_flights(args.video, flights, w, h, fps)  # full in-frame swing
         t0 = f0 / fps
         clip_path = os.path.join(args.save_dir, f"shuttle_hit_{i:02d}_t{t0:.1f}s.mp4")
         wclip = cv2.VideoWriter(clip_path, fourcc, out_fps, (w, h))
